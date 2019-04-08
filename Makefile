@@ -24,8 +24,6 @@ help:
 	@echo "  debugtest     Run some tests under gdb to find bugs."
 	@echo "  clean         Delete intermediate files."
 	@echo "  cleanall      Delete output and intermediate files."
-	@echo "  tag           Tag CVS."
-	@echo "  upload_src    Upload new release with version to sf.net."
 
 ####################
 # dependency stuff #
@@ -41,38 +39,6 @@ endif
 obj/%.d: obj src/%.cpp
 	$(CXX) $(CXXFLAGS) -MM -MT $(patsubst src/%.cpp,obj/%.o,$(filter %.cpp,$+)) $(filter %.cpp,$+) > $@
 
-###########
-# release #
-###########
-
-# source
-pmas-0.$(PMAS_VERSION)$(MODIFIER)_src.tar.gz: cleanall
-	tar -c -z --exclude-vcs -f $@ Makefile README src cpu test
-
-# binaries
-pmas-0.$(PMAS_VERSION)$(MODIFIER).zip: release releasetest clean
-	zip - -q -9 -r . -x *.zip ./src/ ./obj/ ./src/* ./obj/* > $@
-
-.PHONY: upload_src
-upload_src: pmas-0.$(PMAS_VERSION)$(MODIFIER)_src.tar.gz README.txt
-	$(foreach file,$+,scp $(file) darkfader,pmas@frs.sourceforge.net:/home/frs/project/p/pm/pmas/;)
-
-.PHONY: upload_bin
-upload_bin: ../pmas-0.$(PMAS_VERSION)$(MODIFIER)_$(PLATFORM).zip
-	$(foreach file,$+,scp $(file) darkfader,pmas@frs.sourceforge.net:/home/frs/project/p/pm/pmas/;)
-
-.PHONY: tag
-tag:
-	cvs tag -c v0_$(PMAS_VERSION)$(MODIFIER)
-
-README.txt: README ChangeLog.txt
-	cat $+ > $@
-
-ChangeLog.txt: cvs2cl.pl *
-	perl cvs2cl.pl --tagdates --summary --no-wrap --prune --utc --no-times --group-within-date --hide-filenames --stdout . | $(AWK) '/^$$/ || /^\t$$/ { next } /\tAdded:/ || /\tChanged:/ || /\tDeleted:/ { next } /  tag / { print "\n============================\n" $$0 "\n============================\n"; next } // { print $$0 }' > $@
-
-cvs2cl.pl:
-	wget "http://www.red-bean.com/cvs2cl/cvs2cl.pl"
 
 ########
 # misc #
