@@ -59,8 +59,6 @@ FileStack fileStack;
 #define MAX_INCLUDEPATHS		32
 char *includepaths[MAX_INCLUDEPATHS];		// no trailing slashes
 int includepaths_count = 0;
-
-char os_slash = '/'; // os specific slash character
    
 char tmp[TMPSIZE];
 
@@ -500,7 +498,6 @@ EEKS{printf("'%s' '%s'\n", strskipspace(line), s);}
 		const char *p = strskipspace(line);
 		char *name = ParseString(p);
 		char *ss = name;
-		while (*ss) if ((*ss == '/') || (*ss == '\\')) *ss++ = os_slash; else ss++;
 		ParseFile(name);
 		free(name);
 	}
@@ -516,8 +513,6 @@ EEKS{printf("'%s' '%s'\n", strskipspace(line), s);}
 			strcpy(fullpath, includepaths[i]);
 			strcat(fullpath, name);
 			char *ss = fullpath;
-			while (*ss) if ((*ss == '/') || (*ss == '\\')) *ss++ = os_slash; else ss++;
-
 			fb = fopen(fullpath, "rb");
 			if (fb) break;
 		}
@@ -962,9 +957,7 @@ int main(int argc, char *argv[])
 	strcpy(tmp, argv[0]);
 	char *p = strrchr(tmp, '/');
 	if (!p) p = strrchr(tmp, '\\');
-	if (p) os_slash = *p;
 	if (p) *++p = 0;
-	//strcpy(p, "/src");
 	includepaths[includepaths_count++] = strdup(tmp);
 
 	/*
