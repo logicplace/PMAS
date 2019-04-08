@@ -60,7 +60,8 @@ FileStack fileStack;
 char *includepaths[MAX_INCLUDEPATHS];		// no trailing slashes
 int includepaths_count = 0;
 
-char os_slash;		// os specific slash character
+char os_slash = '/'; // os specific slash character
+   
 char tmp[TMPSIZE];
 
 /****************************************************************************\
