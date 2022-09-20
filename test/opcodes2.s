@@ -1,4 +1,4 @@
-	;;.include	cpu/pm.s
+	;;.include	cpu/minx/pm.s
 	add a, a
 	add a, b
 	add a, [hl]

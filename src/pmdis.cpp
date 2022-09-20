@@ -15,6 +15,7 @@ TODO:
 #include <string.h>
 #include <stdlib.h>
 #include "pmas.h"
+#include "cpu.h"
 #include "instruction.h"
 
 /*
@@ -39,18 +40,13 @@ inline int tolower2(int c)
  */
 void InitInstructions()
 {
-	const Instruction instructions[] =
-	{
-		#include "mindx.h"
-	};
-	
 	#define INSTRUCTIONS		(sizeof(instructions) / sizeof(instructions[0]))
 
 	memset(instructions_00, 0, sizeof(instructions_00));
 	memset(instructions_CE, 0, sizeof(instructions_CE));
 	memset(instructions_CF, 0, sizeof(instructions_CF));
 
-	for (int i=0; i<INSTRUCTIONS; i++)
+	for (unsigned int i=0; i<INSTRUCTIONS; i++)
 	{
 		unsigned char extended = 0x00;
 		if (instructions[i].flags & FLAG_EXTENDED) extended = instructions[i].fixed & 0xFF;
@@ -160,7 +156,7 @@ int main(int argc, char *argv[])
 	InitInstructions();
 
 	fprintf(stderr,
-		"Pika Macro DISassembler "VERSION" (build " __DATE__ ") by Rafael Vuijk. http://darkfader.net/pm/\n"
+		"Pika Macro DISassembler " VERSION " (build " __DATE__ ") by Rafael Vuijk. http://darkfader.net/pm/\n"
 	);
 	
 	if (argc < 3)

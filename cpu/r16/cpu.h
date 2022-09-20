@@ -1,3 +1,5 @@
+#include "instruction.h"
+
 // fixed bits
 #define IMMEDIATE		0x8000
 #define WRITEBACK		0x0100

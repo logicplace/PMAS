@@ -14,7 +14,7 @@
 ;-----------------------------------------------------------------------------
 
 	;.incbin	file.bin				; include binary file
-	.include	cpu/pm.s				; include assembly file. PMAS executable path is tried as last.
+	.include	cpu/minx/pm.s			; include assembly file. PMAS executable path is tried as last.
 
 ;-----------------------------------------------------------------------------
 ; Options

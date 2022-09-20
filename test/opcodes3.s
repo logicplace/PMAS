@@ -1,6 +1,6 @@
 	; the OLD instruction names
 
-	;;.include	cpu/pm.s
+	;;.include	cpu/minx/pm.s
 	addb a, a
 	addb a, b
 	addb a, [hl]

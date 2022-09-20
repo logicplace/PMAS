@@ -46,7 +46,7 @@ struct ArgInfo
 
 struct Instruction
 {
-	char *fmt;							// uppercase format string. delimiters ' ' and ','. arguments '~0' and '~1'
+	char fmt[20];							// uppercase format string. delimiters ' ' and ','. arguments '~0' and '~1'
 	unsigned int flags;					// instruction behaviour
 	unsigned int fixed;
 	unsigned int size;					// total size of instruction
@@ -54,17 +54,14 @@ struct Instruction
 
 	ArgInfo argInfo[MAX_ARGS];
 	Instruction *next;
-	
-	~Instruction()
-	{
-		free(fmt);
-	}
 };
 
 /*
  * Variables
  */
+#ifndef CPU
 extern Instruction *instructions;
+#endif
 
 /*
  * Prototypes

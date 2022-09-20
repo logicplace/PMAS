@@ -1,4 +1,4 @@
-	;.include	cpu/pm.s
+	;.include	cpu/minx/pm.s
 
 	.if		0
 	nop

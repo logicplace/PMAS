@@ -1,4 +1,4 @@
-	.include	cpu/r16.s
+	.include	cpu/r16/r16.s
 
 	.equ rofl	0x1234
 	.equ r0fl	0x1234

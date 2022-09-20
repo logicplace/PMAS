@@ -72,6 +72,11 @@ char tmp[TMPSIZE];
 	#define MAX_ERRORS			20
 #endif
 
+#ifndef VERSION
+	#define VERSION
+	#define VERSIONN
+#endif
+
 int errors = 0;				// increased in eprintf
 
 //extern File files[];			// TODO: put into stack
@@ -422,7 +427,7 @@ EEKS{printf("verify "); GetSymbolValue(name).print();}
 	{
 		const char *p = strskipspace(line);
 		Instruction *instruction = new Instruction;
-		instruction->fmt = strdup(EvaluateExpression(p, &p).getString());
+		strncpy(instruction->fmt, EvaluateExpression(p, &p).getString(), 19);
 		instruction->flags = EvaluateExpression(p, &p);
 		instruction->fixed = EvaluateExpression(p, &p);
 		instruction->size = EvaluateExpression(p, &p);
@@ -497,7 +502,6 @@ EEKS{printf("'%s' '%s'\n", strskipspace(line), s);}
 	{
 		const char *p = strskipspace(line);
 		char *name = ParseString(p);
-		char *ss = name;
 		ParseFile(name);
 		free(name);
 	}
@@ -512,7 +516,6 @@ EEKS{printf("'%s' '%s'\n", strskipspace(line), s);}
 			char fullpath[TMPSIZE];
 			strcpy(fullpath, includepaths[i]);
 			strcat(fullpath, name);
-			char *ss = fullpath;
 			fb = fopen(fullpath, "rb");
 			if (fb) break;
 		}
@@ -714,7 +717,7 @@ void ParseInstruction(const char *cline)
 
 		if (!instructions)		// try default cpu
 		{
-			ParseFile("cpu/pm.s");
+			ParseFile("cpu/pm/pm.s");
 			if (TryInstructions(cline)) return;
 		}
 

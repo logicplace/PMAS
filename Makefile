@@ -1,14 +1,18 @@
-PMAS_VERSION := 20
+CPU ?= pm
+PMAS_VERSION := 1.0
 VERSION2 :=
 MODIFIER :=
-CFLAGS := -Wall -DVERSION="\"0.$(PMAS_VERSION)$(VERSION2)$(MODIFIER)\"" -DVERSIONN=$(PMAS_VERSION)
+INCLUDES := -Isrc -Icpu/$(CPU)
+CFLAGS := -Wall $(INCLUDES) -DVERSION="\"$(PMAS_VERSION)$(VERSION2)$(MODIFIER)\"" -DVERSIONN=$(PMAS_VERSION)
+CXXFLAGS := $(INCLUDES)
 LD := $(CXX)
-LDFLAGS :=
+LDFLAGS := $(INCLUDES)
 COMPARE = diff -q --binary
 PMDIS = ./pmdis
-OUTPUTS = pmas$(MODIFIER) cpu/pm.s
-#OUTPUTS += pmdis  #hmm.. need mindx.h
+OUTPUTS = pmas$(MODIFIER) cpu/$(CPU)/*.s
+OUTPUTS += pmdis
 AWK := awk
+PY := python
 
 ########
 # help #
@@ -84,8 +88,14 @@ PMAS_OBJECTS := $(patsubst src/%.cpp,obj/%.o,$(PMAS_SOURCES))
 pmas$(MODIFIER): obj $(PMAS_OBJECTS)
 	$(LD) $(LDFLAGS) -o $@ $(filter %.o,$+)
 
-pmdis: obj obj/pmdis.o
+pmdis: obj obj/pmdis.o cpu/$(CPU)/cpu.h
 	$(LD) $(LDFLAGS) -o $@ $(filter %.o,$+)
+
+cpu/pm/pm.s: cpu/s1c88/pm.s
+	$(PY) build_common_pm.py
+
+cpu/pm/cpu.h: cpu/s1c88/cpu.h
+	-cp cpu/s1c88/cpu.h cpu/pm/cpu.h
 
 #########
 # tests #
@@ -97,28 +107,11 @@ test/%.min: test/%.s pmas$(MODIFIER)
 test/%.min: test/%.S pmas$(MODIFIER)
 	$(CPP) $< | $(PMAS) - $@ $(@:min=sym)
 
-######################################################
-# mindx (Pokemon Mini instruction set documentation) #
-######################################################
-
-cpu/pm.s: cpu/mindx.txt parsemindx
-	./parsemindx cpu/mindx.txt cpu/pm.s highlight.tmp
-	(cat cpu/pm_wordfile_head.txt; sort -u highlight.tmp) > cpu/pm_wordfile.txt
-	rm highlight.tmp
-
-parsemindx: src/parsemindx.cpp
-	$(CXX) $(CFLAGS) -o $@ $+
-
-#cpu/mindx.txt:
-#	wget -O mindx.zip $(MINDX_ZIP)
-#	unzip -o mindx.zip cpu/mindx.txt
-#	rm mindx.zip
-
 ########
 # misc #
 ########
 
-obj/%.o: src/%.cpp
+obj/%.o: src/%.cpp cpu/$(CPU)/cpu.h
 	$(CXX) $(CFLAGS) -c -o $@ $<
 
 .PHONY: clean
@@ -128,5 +121,5 @@ clean:
 
 .PHONY: cleanall
 cleanall: clean
-	-rm -f *.tar.gz pmas$(MODIFIER) pmas$(MODIFIER).exe pmdis pmdis.exe cpu/pm_wordfile.txt
+	-rm -f *.tar.gz pmas$(MODIFIER) pmas$(MODIFIER).exe pmdis pmdis.exe
 

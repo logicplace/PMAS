@@ -1,0 +1,11 @@
+__pycache__
+*.pyc
+cpu/pm
+
+obj
+*.min
+*.sym
+pmas
+pmdis
+
+.vscode/c_cpp_properties.json
