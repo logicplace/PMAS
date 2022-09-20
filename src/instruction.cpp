@@ -221,7 +221,7 @@ bool TryInstruction(Instruction *instruction, char *line, int &skip, bool place,
 			(*matchlevel)++;
 			continue;
 		}
-		else if (isspace2(*p) && (*fmt == 'B') && (*(fmt+1) == ' '))		// forgot 'B' suffix?	(matches before 'W' suffix)
+		else if (isspace2(*p) && (*fmt == 'B' || *fmt == 'S') && (*(fmt+1) == ' '))		// forgot 'B' suffix?	(matches before 'W' suffix)
 		{
 			fmt++;
 			if (instruction->flags & FLAG_REL)
@@ -243,7 +243,7 @@ bool TryInstruction(Instruction *instruction, char *line, int &skip, bool place,
 //else printf("non-relative\n");
 			continue;
 		}
-		else if (isspace2(*p) && (*fmt == 'W') && (*(fmt+1) == ' '))		// forgot 'W' suffix?
+		else if (isspace2(*p) && (*fmt == 'W' || *fmt == 'L') && (*(fmt+1) == ' '))		// forgot 'W' suffix?
 		{
 			fmt++;
 			if (instruction->flags & FLAG_REL)

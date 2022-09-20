@@ -1,4 +1,5 @@
 import itertools
+import os
 import re
 
 reg_8bit = {"A", "B", "L", "H", "BR", "EP", "XP", "YP", "CB", "NB", "SC", "CC"}
@@ -126,7 +127,11 @@ def permutate_cmd(mnemonic, params):
 		cases = (check, case_map[check]) if check != case_map[check] else (check,)
 		mres = ["{} {},".format(mnemonic, c) for c in cases]
 		for m in get_cased_mnemonics(mnemonic, check):
-			mres.extend(m.format(c) for c in cases)
+			mres.extend(
+				m.format(c)
+				for c in cases
+				if not m.startswith("J{}") or c not in "MP"
+			)
 	else:
 		mres = [mnemonic] + mnemonic_map.get(mnemonic, [])
 		if params and mnemonic not in op_no_bw:
@@ -137,7 +142,6 @@ def permutate_cmd(mnemonic, params):
 	res = [mres] + permutate_params(params)
 
 	ret = itertools.product(*res)
-	next(ret)  # skip base case
 	return ret
 
 def permutate_params(params, isindexing=False):
@@ -162,10 +166,13 @@ def fmt_cmd(mnemonic, params):
 		)
 	return mnemonic + ret
 
+try: os.mkdir("cpu/pm")
+except: pass
+
 with open("cpu/s1c88/pm.s", "rt") as fin, open("cpu/pm/pm.s", "wt") as fout:
-	fout.write("; Automatically generated file, edit cpu/s1c88/pm.s instead")
+	out = []
+	fout.write("; Automatically generated file, edit cpu/s1c88/pm.s instead\n")
 	for line in fin:
-		fout.write(line)
 		if line.startswith(".instruction"):
 			assert line[13] == '"'
 			endcmd = line.find('"', 14)
@@ -175,14 +182,15 @@ with open("cpu/s1c88/pm.s", "rt") as fin, open("cpu/pm/pm.s", "wt") as fout:
 			if cmd in instruction_map:
 				# Wholesale aliases
 				for x in instruction_map[cmd]:
-					fout.write('.instruction "{}"{}'.format(x, args))
+					out.append('.instruction "{}"{}'.format(x, args))
 
 			# Permutate registers and stuff
 			for res in permutate_cmd(*parse_cmd(cmd)):
 				mnemonic = res[0]
 				params = res[1:]
-				fout.write('.instruction "{}"{}'.format(fmt_cmd(mnemonic, params), args))
+				out.append('.instruction "{}"{}'.format(fmt_cmd(mnemonic, params), args))
 
 	# Extra lines
-	fout.write('\n; Extra\n')
-	fout.write('.instruction "MOVW NN,~0",0x01,0xB4,2,1,8,0x020250	; 1704\n')
+	out.append('.instruction "MOVW NN,~0",0x01,0xB4,2,1,8,0x020250	; 1704\n')
+
+	fout.writelines(sorted(out))

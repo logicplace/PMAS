@@ -71,9 +71,9 @@ int ReadMiniFile(char *filename)
 	size = ftell(fi);
 	memory = new unsigned char [size];
 	fseek(fi, 0, SEEK_SET);
-	fread(memory, 1, size, fi);
+	auto ret = fread(memory, 1, size, fi);
 	fclose(fi);
-	return 0;
+	return (int)ret;
 }
 
 /*

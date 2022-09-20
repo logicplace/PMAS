@@ -641,12 +641,18 @@
 .instruction "POP ALE",0x04,0xBDCF,2,0	; 1305
 
 ;; Branching
+.instruction "CAR ~0",0x03,0xF2,3,1,8,0x000190	; 1399
+.instruction "CARS ~0",0x03,0xF0,2,1,8,0x000188	; 583
+.instruction "CARL ~0",0x03,0xF2,3,1,8,0x000190	; 1399
+.instruction "JR ~0",0x03,0xF3,3,1,8,0x000190	; 1405
+.instruction "JRS ~0",0x03,0xF1,2,1,8,0x000188	; 589
+.instruction "JRL ~0",0x03,0xF3,3,1,8,0x000190	; 1405
+
 ; Relative short jump
 .instruction "JRS C,~0",0x03,0xE4,2,1,8,0x000188	; 523
 .instruction "JRS NC,~0",0x03,0xE5,2,1,8,0x000188
 .instruction "JRS Z,~0",0x03,0xE6,2,1,8,0x000188
 .instruction "JRS NZ,~0",0x03,0xE7,2,1,8,0x000188
-.instruction "JRS ~0",0x03,0xF1,2,1,8,0x000188	; 589
 
 .instruction "JRS LT,~0",0x06,0xE0CE,3,1,16,0x000188	; 1104
 .instruction "JRS LE,~0",0x06,0xE1CE,3,1,16,0x000188	; 1108
@@ -670,7 +676,6 @@
 .instruction "JRL NC,~0",0x03,0xED,3,1,8,0x000190	; 1387
 .instruction "JRL Z,~0",0x03,0xEE,3,1,8,0x000190	; 1391
 .instruction "JRL NZ,~0",0x03,0xEF,3,1,8,0x000190	; 1395
-.instruction "JRL ~0",0x03,0xF3,3,1,8,0x000190	; 1405
 
 ; Indirect jump
 .instruction "JP HL",0x01,0xF4,1,0	; 601
@@ -684,7 +689,6 @@
 .instruction "CARS NC,~0",0x03,0xE1,2,1,8,0x000188	; 502
 .instruction "CARS Z,~0",0x03,0xE2,2,1,8,0x000188	; 509
 .instruction "CARS NZ,~0",0x03,0xE3,2,1,8,0x000188	; 516
-.instruction "CARS ~0",0x03,0xF0,2,1,8,0x000188	; 583
 .instruction "CARS LT,~0",0x06,0xF0CE,3,1,16,0x000188	; 1136
 .instruction "CARS LE,~0",0x06,0xF1CE,3,1,16,0x000188	; 1143
 .instruction "CARS GT,~0",0x06,0xF2CE,3,1,16,0x000188	; 1150
@@ -707,7 +711,6 @@
 .instruction "CARL NC,~0",0x03,0xE9,3,1,8,0x000190	; 1362
 .instruction "CARL Z,~0",0x03,0xEA,3,1,8,0x000190	; 1369
 .instruction "CARL NZ,~0",0x03,0xEB,3,1,8,0x000190	; 1376
-.instruction "CARL ~0",0x03,0xF2,3,1,8,0x000190	; 1399
 
 ; Indirect call
 .instruction "CALL [~0]",0x01,0xFB,3,1,8,0x040050	; 628

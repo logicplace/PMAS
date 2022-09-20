@@ -9,7 +9,12 @@ LD := $(CXX)
 LDFLAGS := $(INCLUDES)
 COMPARE = diff -q --binary
 PMDIS = ./pmdis
-OUTPUTS = pmas$(MODIFIER) cpu/$(CPU)/*.s
+OUTPUTS := pmas$(MODIFIER)
+ifeq "$(CPU)" "pm"
+OUTPUTS += cpu/$(CPU)/pm.s
+else
+OUTPUTS += $(shell find cpu/$(CPU) -name "*.s")
+endif
 OUTPUTS += pmdis
 AWK := awk
 PY := python
@@ -40,7 +45,7 @@ ifeq (0, $(words $(findstring $(MAKECMDGOALS), $(NODEPS))))
 	-include $(DEPFILES)
 endif
 
-obj/%.d: obj src/%.cpp
+obj/%.d: obj src/%.cpp cpu/$(CPU)/cpu.h
 	$(CXX) $(CXXFLAGS) -MM -MT $(patsubst src/%.cpp,obj/%.o,$(filter %.cpp,$+)) $(filter %.cpp,$+) > $@
 
 
@@ -68,10 +73,11 @@ debugtest: debug
 
 .PHONY: releasetest
 releasetest: PMAS = ./pmas$(MODIFIER)
-releasetest: release test/readme.min test/test1.min test/test2.min test/test3.min test/opcodes1.min test/opcodes2.min test/opcodes3.min
+releasetest: release test/readme.min test/test1.min test/test2.min test/test3.min test/test4.min test/opcodes1.min test/opcodes2.min test/opcodes3.min
 	$(COMPARE) test/opcodes1.min test/opcodes2.min
 	$(COMPARE) test/opcodes1.min test/opcodes3.min
 	$(COMPARE) test/test1.min test/test2.min
+	$(COMPARE) test/test1.min test/test4.min
 	$(PMAS) test/test.s test/test.min
 
 #	$(PMDIS) test/opcodes2.min test/opcodes2.dis.s
@@ -94,8 +100,11 @@ pmdis: obj obj/pmdis.o cpu/$(CPU)/cpu.h
 cpu/pm/pm.s: cpu/s1c88/pm.s
 	$(PY) build_common_pm.py
 
-cpu/pm/cpu.h: cpu/s1c88/cpu.h
+cpu/pm/cpu.h: cpu/pm cpu/s1c88/cpu.h
 	-cp cpu/s1c88/cpu.h cpu/pm/cpu.h
+
+cpu/pm:
+	mkdir cpu/pm
 
 #########
 # tests #
@@ -111,7 +120,10 @@ test/%.min: test/%.S pmas$(MODIFIER)
 # misc #
 ########
 
-obj/%.o: src/%.cpp cpu/$(CPU)/cpu.h
+obj/pmdis.o: src/pmdis.cpp cpu/$(CPU)/cpu.h
+	$(CXX) $(CFLAGS) -c -o $@ $<
+
+obj/%.o: src/%.cpp
 	$(CXX) $(CFLAGS) -c -o $@ $<
 
 .PHONY: clean
@@ -121,5 +133,6 @@ clean:
 
 .PHONY: cleanall
 cleanall: clean
-	-rm -f *.tar.gz pmas$(MODIFIER) pmas$(MODIFIER).exe pmdis pmdis.exe
+	-rm -f *.tar.gz pmas$(MODIFIER) pmas$(MODIFIER).exe pmdis pmdis.exe cpu/pm/*
+	-rmdir cpu/pm
 
