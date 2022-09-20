@@ -8,13 +8,14 @@ CXXFLAGS := $(INCLUDES)
 LD := $(CXX)
 LDFLAGS := $(INCLUDES)
 COMPARE = diff -q --binary
+PMAS = pmas$(MODIFIER)
 PMDIS = ./pmdis
-OUTPUTS := pmas$(MODIFIER)
 ifeq "$(CPU)" "pm"
-OUTPUTS += cpu/$(CPU)/pm.s
+OUTPUTS := cpu/$(CPU)/pm.s
 else
-OUTPUTS += $(shell find cpu/$(CPU) -name "*.s")
+OUTPUTS := $(shell find cpu/$(CPU) -name "*.s")
 endif
+OUTPUTS += $(PMAS)
 OUTPUTS += pmdis
 AWK := awk
 PY := python
@@ -29,6 +30,7 @@ help:
 	@echo "  help          This list."
 	@echo "  release       Build release version of pmas."
 	@echo "  debug         Build debug version of pmas."
+	@echo "  bundle        Bundle a release build into a tar.gz"
 	@echo "  releasetest   Run some tests."
 	@echo "  debugtest     Run some tests under gdb to find bugs."
 	@echo "  clean         Delete intermediate files."
@@ -56,6 +58,12 @@ obj/%.d: obj src/%.cpp cpu/$(CPU)/cpu.h
 obj:
 	mkdir obj
 
+out:
+	mkdir out
+
+out/cpu:
+	mkdir out/cpu
+
 .PHONY: debug
 debug: CFLAGS += -g -DDEBUG
 debug: $(OUTPUTS)
@@ -66,13 +74,16 @@ release: CFLAGS += -O3
 release: LDFLAGS +=							#-Wl,-s
 release: $(OUTPUTS)
 
+.PHONY: bundle
+bundle: pmas.tar.gz
+
 .PHONY: debugtest
-debugtest: PMAS = echo r | gdb -q -x - --args pmas$(MODIFIER)
+debugtest: PMAS = echo r | gdb -q -x - --args $(PMAS)
 debugtest: debug
 	$(PMAS) test/test.s test/test.min
 
 .PHONY: releasetest
-releasetest: PMAS = ./pmas$(MODIFIER)
+releasetest: PMAS = ./$(PMAS)
 releasetest: release test/readme.min test/test1.min test/test2.min test/test3.min test/test4.min test/opcodes1.min test/opcodes2.min test/opcodes3.min
 	$(COMPARE) test/opcodes1.min test/opcodes2.min
 	$(COMPARE) test/opcodes1.min test/opcodes3.min
@@ -84,14 +95,19 @@ releasetest: release test/readme.min test/test1.min test/test2.min test/test3.mi
 #	$(PMAS) test/opcodes2.dis.s test/opcodes2.as.min test/opcodes2.as.sym
 #	$(COMPARE) test/opcodes2.min test/opcodes2.as.min
 
+pmas.tar.gz: release out out/cpu $(OUTPUTS)
+	-cp $(PMAS)* $(PMDIS)* README out
+	-cp cpu/$(CPU)/* out/cpu
+	cd out && tar -czf ../$@ *
+
 ##############
 # pmas/pmdis #
 ##############
 
-PMAS_SOURCES := src/pmas$(MODIFIER).cpp src/eval.cpp src/misc.cpp src/symbol.cpp src/stack.cpp src/valuetype.cpp src/macrolist.cpp src/instruction.cpp src/mem.cpp src/tmplabel.cpp
+PMAS_SOURCES := src/$(PMAS).cpp src/eval.cpp src/misc.cpp src/symbol.cpp src/stack.cpp src/valuetype.cpp src/macrolist.cpp src/instruction.cpp src/mem.cpp src/tmplabel.cpp
 PMAS_OBJECTS := $(patsubst src/%.cpp,obj/%.o,$(PMAS_SOURCES))
 
-pmas$(MODIFIER): obj $(PMAS_OBJECTS)
+$(PMAS): obj $(PMAS_OBJECTS)
 	$(LD) $(LDFLAGS) -o $@ $(filter %.o,$+)
 
 pmdis: obj obj/pmdis.o cpu/$(CPU)/cpu.h
@@ -110,10 +126,10 @@ cpu/pm:
 # tests #
 #########
 
-test/%.min: test/%.s pmas$(MODIFIER)
+test/%.min: test/%.s $(PMAS)
 	$(PMAS) $< $@ $(@:min=sym)
 
-test/%.min: test/%.S pmas$(MODIFIER)
+test/%.min: test/%.S $(PMAS)
 	$(CPP) $< | $(PMAS) - $@ $(@:min=sym)
 
 ########
@@ -133,6 +149,6 @@ clean:
 
 .PHONY: cleanall
 cleanall: clean
-	-rm -f *.tar.gz pmas$(MODIFIER) pmas$(MODIFIER).exe pmdis pmdis.exe cpu/pm/*
+	-rm -f *.tar.gz $(PMAS) $(PMAS).exe pmdis pmdis.exe cpu/pm/*
 	-rmdir cpu/pm
 

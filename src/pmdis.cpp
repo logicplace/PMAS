@@ -91,55 +91,52 @@ unsigned int Disassemble(char *q, unsigned char *memory, unsigned int addr)
 		default: instruction = instructions_00 + memory[addr++]; break;
 	}
 
-	if (instruction->fmt)
+	//unsigned char argbytes[MAX_ARGS];
+	//for (unsigned int j=0; j<instruction->argbytes; j++) argbytes[j] = memory[addr++];
+	
+	char *s = instruction->fmt;
+	while (*s)
 	{
-		//unsigned char argbytes[MAX_ARGS];
-		//for (unsigned int j=0; j<instruction->argbytes; j++) argbytes[j] = memory[addr++];
-		
-		char *s = instruction->fmt;
-		while (*s)
+		if (*s == '~')
 		{
-			if (*s == '~')
+			s++;
+			int argsrc = *s++ - '0';
+			unsigned int argflags = instruction->argInfo[argsrc].flags;
+			unsigned int tmp = *(unsigned int *)(memory + addr);
+			unsigned int bitmask = ~(0xFFFFFFFF << (argflags & ARGFLAG_BITS));
+			int value = tmp & bitmask;
+
+			if (argflags & ARGFLAG_HIGH) value <<= 8;
+			
+			if (argflags & ARGFLAG_S)
 			{
-				s++;
-				int argsrc = *s++ - '0';
-				unsigned int argflags = instruction->argInfo[argsrc].flags;
-				unsigned int tmp = *(unsigned int *)(memory + addr);
-				unsigned int bitmask = ~(0xFFFFFFFF << (argflags & ARGFLAG_BITS));
-				int value = tmp & bitmask;
+				if (value & ((argflags & ARGFLAG_BITS)-1)) value -= (1 << (argflags & ARGFLAG_BITS));
+			}
 
-				if (argflags & ARGFLAG_HIGH) value <<= 8;
-				
-				if (argflags & ARGFLAG_S)
-				{
-					if (value & ((argflags & ARGFLAG_BITS)-1)) value -= (1 << (argflags & ARGFLAG_BITS));
-				}
-
-				if (argflags & ARGFLAG_REL)
-				{
-					value += instruction->size - 1;
-					qp += sprintf(qp, ".%+d ", value);
-					value += opcode_addr - 1;
-					qp += sprintf(qp, ";@%06X", value);
-				}
-				else if ((argflags & ARGFLAG_BITS) >= 16)
-				{
-					qp += sprintf(qp, "$%04X", value);
-				}
-				else
-				{
-					qp += sprintf(qp, "$%02X", value);
-				}
+			if (argflags & ARGFLAG_REL)
+			{
+				value += instruction->size - 1;
+				qp += sprintf(qp, ".%+d ", value);
+				value += opcode_addr - 1;
+				qp += sprintf(qp, ";@%06X", value);
+			}
+			else if ((argflags & ARGFLAG_BITS) >= 16)
+			{
+				qp += sprintf(qp, "$%04X", value);
 			}
 			else
 			{
-				*qp++ = tolower2(*s++);
-				*qp = 0;
+				qp += sprintf(qp, "$%02X", value);
 			}
 		}
-
-		if (!*s) return opcode_addr + instruction->size;
+		else
+		{
+			*qp++ = tolower2(*s++);
+			*qp = 0;
+		}
 	}
+
+	if (!*s) return opcode_addr + instruction->size;
 
 	qp = q;
 	qp += sprintf(qp, ".db $%02X", memory[opcode_addr]);
@@ -156,7 +153,7 @@ int main(int argc, char *argv[])
 	InitInstructions();
 
 	fprintf(stderr,
-		"Pika Macro DISassembler " VERSION " (build " __DATE__ ") by Rafael Vuijk. http://darkfader.net/pm/\n"
+		"Pika Macro DISassembler " VERSION " (build " __DATE__ ") originallyby Rafael Vuijk. http://darkfader.net/pm/\n"
 	);
 	
 	if (argc < 3)

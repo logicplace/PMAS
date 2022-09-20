@@ -3,9 +3,12 @@ __pycache__
 cpu/pm
 
 obj
+out
 *.min
 *.sym
 pmas
 pmdis
+pmas.exe
+pmdis.exe
 
 .vscode/c_cpp_properties.json

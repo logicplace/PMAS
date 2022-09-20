@@ -884,7 +884,7 @@ int main(int argc, char *argv[])
 	// show title when not stdout
 	if ((argc < 3) || strcmp(argv[2], "-"))
 	{
-		printf("Pika Macro ASsembler v" VERSION " (build " __DATE__ ") by Rafael Vuijk. http://darkfader.net/pm/\n");
+		printf("Pika Macro ASsembler v" VERSION " (build " __DATE__ ") originally by Rafael Vuijk. https://github.com/logicplace/PMAS\n");
 	}
 
 	// show help
