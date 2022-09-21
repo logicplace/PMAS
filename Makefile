@@ -1,28 +1,21 @@
-CPU ?= pm
+##############################################################################
+####                 On building the Pika Macro ASsembler                 ####
+##############################################################################
+#### PMAS was originally designed by Rafael Vuijk (DarkFader) of darkfader.net
+####
+#### This is designed for GNU Make. Compile thru MSYS2 on Windows.
+#### Windows (admin PowerShell prompt with Chocolatey installed):
+####   choco install python3 msys2
+####   msys2
+####   pacman -S mingw-w64-gcc make diffutils zip
+####   make release
+#### Linux (Ubuntu):
+####   apt install build-essential diffutils tar
+####   make release
+####
+#### build_common_pm.py works on Python 2.7+ so the version that ships with
+#### your linux install should be good enough.
 PMAS_VERSION := 1.0
-VERSION2 :=
-MODIFIER :=
-INCLUDES := -Isrc -Icpu/$(CPU)
-CFLAGS := -Wall $(INCLUDES) -DVERSION="\"$(PMAS_VERSION)$(VERSION2)$(MODIFIER)\"" -DVERSIONN=$(PMAS_VERSION)
-CXXFLAGS := $(INCLUDES)
-LD := $(CXX)
-LDFLAGS := $(INCLUDES)
-COMPARE = diff -q --binary
-PMAS = pmas$(MODIFIER)
-PMDIS = ./pmdis
-ifeq "$(CPU)" "pm"
-OUTPUTS := cpu/$(CPU)/pm.s
-else
-OUTPUTS := $(shell find cpu/$(CPU) -name "*.s")
-endif
-OUTPUTS += $(PMAS)
-OUTPUTS += pmdis
-AWK := awk
-PY := python
-
-########
-# help #
-########
 
 .PHONY: help
 help:
@@ -30,125 +23,180 @@ help:
 	@echo "  help          This list."
 	@echo "  release       Build release version of pmas."
 	@echo "  debug         Build debug version of pmas."
-	@echo "  bundle        Bundle a release build into a tar.gz"
+	@echo "  bundle        Bundle a release build"
 	@echo "  releasetest   Run some tests."
 	@echo "  debugtest     Run some tests under gdb to find bugs."
-	@echo "  clean         Delete intermediate files."
-	@echo "  cleanall      Delete output and intermediate files."
+	@echo "  clean         Delete all output files (besides release)."
 
-####################
-# dependency stuff #
-####################
+##############################################################################
+####                                Config                                ####
+##############################################################################
+# Command-line configurable options
+## Select which CPU to test, folder name from cpu subdir
+CPU ?= all
 
-NODEPS:=clean cleanall
-SOURCES:=$(shell find src/ -name "*.cpp")
-DEPFILES:=$(patsubst src/%.cpp,obj/%.d,$(SOURCES))
-ifeq (0, $(words $(findstring $(MAKECMDGOALS), $(NODEPS))))
+# Tools
+COMPARE := diff -q --binary
+LD := $(CXX)
+PY := python
+
+PMAS = ./$(tPMAS)
+PMDIS = ./$(tPMDIS)
+
+# General
+CPUS := minx s1c88 pm r16
+EXES = $(tPMAS) $(tPMDIS)
+COPYME = $(EXES) $(wildcard *.md) cpu
+SOURCES := $(wildcard src/*.cpp)
+DEPFILES := $(SOURCES:src/%.cpp=obj/%.d)
+NODEPS := clean
+
+# Build flags
+INCLUDES := -Isrc -Icpu/pm
+CXXFLAGS := -Wall $(INCLUDES) -DVERSION="\"$(PMAS_VERSION)\""
+LDFLAGS := $(INCLUDES)
+
+ifeq ($(OS),Windows_NT)
+tPMAS := pmas.exe
+tPMDIS := pmdis.exe
+ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
+BUNDLE := releases/pmas-windows-x64.zip
+else
+BUNDLE := releases/pmas-windows-x86.zip
+endif
+else
+tPMAS := pmas
+tPMDIS := pmdis
+ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
+BUNDLE := releases/pmas-windows-x64.zip
+else
+BUNDLE := releases/pmas-windows-x86.zip
+endif
+UNAME_S := $(shell uname -s)
+UNAME_P := $(shell uname -p)
+ifeq ($(UNAME_S),Darwin)
+OS := osx
+else
+OS := linux
+endif
+ifeq ($(UNAME_P),x86_64)
+BUNDLE := releases/pmas-$(OS)-x64.tar.gz
+else
+BUNDLE := releases/pmas-$(OS)-x86.tar.gz
+endif
+endif
+
+# Generate dependecies
+## Generate an objects list from the g++ -MM export based on which header files have cpp files 
+define getobjs =
+$(patsubst src/%.h,obj/%.o,$(filter $(SOURCES:%.cpp=%.h),$(shell [ -f obj/$(1).d ] && sed -e 's/^[^:]*://' obj/$(1).d)))
+endef
+
+## Do g++ -MM exports and make object deps rules
+ifeq (,$(filter $(MAKECMDGOALS),$(NODEPS)))
 	-include $(DEPFILES)
 endif
 
-obj/%.d: obj src/%.cpp cpu/$(CPU)/cpu.h
-	$(CXX) $(CXXFLAGS) -MM -MT $(patsubst src/%.cpp,obj/%.o,$(filter %.cpp,$+)) $(filter %.cpp,$+) > $@
-
-
-########
-# misc #
-########
-
-obj:
-	mkdir obj
-
-out:
-	mkdir out
-
-out/cpu:
-	mkdir out/cpu
+##############################################################################
+####                              Phony rules                             ####
+##############################################################################
+.PHONY: release
+release: CFLAGS += -O3
+release: $(EXES)
 
 .PHONY: debug
 debug: CFLAGS += -g -DDEBUG
-debug: $(OUTPUTS)
+release: $(EXES)
 
-.PHONY: release
-release: CFLAGS += -O3
-#-march=i586 -mcpu=i686 -O3 -fomit-frame-pointer
-release: LDFLAGS +=							#-Wl,-s
-release: $(OUTPUTS)
-
-.PHONY: bundle
-bundle: pmas.tar.gz
+.PHONY: releasetest
+releasetest: release test-$(CPU)
 
 .PHONY: debugtest
 debugtest: PMAS = echo r | gdb -q -x - --args $(PMAS)
-debugtest: debug
-	$(PMAS) test/test.s test/test.min
+debugtest: debug test-$(CPU)
 
-.PHONY: releasetest
-releasetest: PMAS = ./$(PMAS)
-releasetest: release test/readme.min test/test1.min test/test2.min test/test3.min test/test4.min test/opcodes1.min test/opcodes2.min test/opcodes3.min
-	$(COMPARE) test/opcodes1.min test/opcodes2.min
-	$(COMPARE) test/opcodes1.min test/opcodes3.min
-	$(COMPARE) test/test1.min test/test2.min
-	$(COMPARE) test/test1.min test/test4.min
-	$(PMAS) test/test.s test/test.min
+.PHONY: bundle
+bundle: releasetest $(BUNDLE)
 
-#	$(PMDIS) test/opcodes2.min test/opcodes2.dis.s
-#	$(PMAS) test/opcodes2.dis.s test/opcodes2.as.min test/opcodes2.as.sym
-#	$(COMPARE) test/opcodes2.min test/opcodes2.as.min
-
-pmas.tar.gz: release out out/cpu $(OUTPUTS)
-	-cp $(PMAS)* $(PMDIS)* README out
-	-cp cpu/$(CPU)/* out/cpu
-	cd out && tar -czf ../$@ *
-
-##############
-# pmas/pmdis #
-##############
-
-PMAS_SOURCES := src/$(PMAS).cpp src/eval.cpp src/misc.cpp src/symbol.cpp src/stack.cpp src/valuetype.cpp src/macrolist.cpp src/instruction.cpp src/mem.cpp src/tmplabel.cpp
-PMAS_OBJECTS := $(patsubst src/%.cpp,obj/%.o,$(PMAS_SOURCES))
-
-$(PMAS): obj $(PMAS_OBJECTS)
+##############################################################################
+####                              Executables                             ####
+##############################################################################
+$(tPMAS):: obj/pmas.d
+$(tPMAS):: obj/stack.o $(call getobjs,pmas)
 	$(LD) $(LDFLAGS) -o $@ $(filter %.o,$+)
 
-pmdis: obj obj/pmdis.o cpu/$(CPU)/cpu.h
+$(tPMDIS): obj/pmdis.o
+	@echo $+
 	$(LD) $(LDFLAGS) -o $@ $(filter %.o,$+)
 
-cpu/pm/pm.s: cpu/s1c88/pm.s
-	$(PY) build_common_pm.py
-
-cpu/pm/cpu.h: cpu/pm cpu/s1c88/cpu.h
-	-cp cpu/s1c88/cpu.h cpu/pm/cpu.h
-
-cpu/pm:
-	mkdir cpu/pm
-
-#########
-# tests #
-#########
-
-test/%.min: test/%.s $(PMAS)
-	$(PMAS) $< $@ $(@:min=sym)
-
-test/%.min: test/%.S $(PMAS)
-	$(CPP) $< | $(PMAS) - $@ $(@:min=sym)
-
-########
-# misc #
-########
-
-obj/pmdis.o: src/pmdis.cpp cpu/$(CPU)/cpu.h
-	$(CXX) $(CFLAGS) -c -o $@ $<
+obj/%.d: src/%.cpp
+	@mkdir obj 2>/dev/null | true
+	$(CXX) $(CXXFLAGS) -MM -MT $(patsubst src/%.cpp,obj/%.o,$(filter %.cpp,$+)) $(filter %.cpp,$+) > $@
 
 obj/%.o: src/%.cpp
-	$(CXX) $(CFLAGS) -c -o $@ $<
+	@mkdir obj 2>/dev/null | true
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
+##############################################################################
+####                        Building release rules                        ####
+##############################################################################
+releases/pmas-%.zip: build
+	cd $< && zip -r ../$@ *
+
+releases/pmas-%.tar.gz: build
+	cd $< && tar -czf ../$@ *
+
+build: $(COPYME)
+	@echo 'If this fails, update the changelog'
+	grep $(PMAS_VERSION) README.md
+	-mkdir $@
+	-cp -r $? $@
+
+##############################################################################
+####                              Test rules                              ####
+##############################################################################
+TESTFILESMINX := test/test-reference.s $(wildcard test/minx/*.s)
+TESTFILESS1C88 := test/test-reference.s $(wildcard test/s1c88/*.s)
+TESTFILESR16 := $(wildcard test/r16/*.s)
+
+# Test suites
+.PHONY: test-all $(addprefix test-,$(patsubst cpu/%,%,$(wildcard cpu/*)))
+
+test-all: test-nested.min test-r16 test-pm
+
+test-pm: CPU = pm
+test-pm: test-minx test-s1c88
+
+test-minx: $(tPMAS) $(TESTFILESMINX:.s=.min)
+	$(COMPARE) test/minx/opcodes1.min test/minx/opcodes2.min
+	$(COMPARE) test/minx/opcodes1.min test/minx/opcodes3.min
+	$(COMPARE) test/test-reference.min test/minx/test.min
+
+test-s1c88: $(tPMAS) $(TESTFILESS1C88:.s=.min)
+	$(COMPARE) test/test-reference.min test/s1c88/test.min
+
+test-r16: $(tPMAS) $(TESTFILESR16:.s=.min)
+# TODO:	$(COMPARE) test/r16/reference.min test/r16/test.min 
+
+# Build test files
+test/%.min: test/%.s $(tPMAS)
+	$(PMAS) $< $@ $(@:.min=.sym)
+
+define test_template = 
+test/$(1)/%.min: test/$(1)/%.s $(tPMAS)
+	$(PMAS) -c $(CPU:all=$(1)) $< $@ $(@:.min=.sym)
+endef
+
+$(foreach cpu,$(CPUS),$(eval $(call test_template,$(cpu))))
+
+
+##############################################################################
+####                               Clean-up                               ####
+##############################################################################
 .PHONY: clean
 clean:
-	-rm -f obj/*.o obj/*.d test/*.min test/*.sym test/*.dis.s parsemindx parsemindx.exe
+	-rm -f obj/*.o obj/*.d test/*.min test/*.sym test/*.dis.s \
+		test/*/*.min test/*/*.sym test/*/*.dis.s \
+		pmas pmas.exe pmdis pmdis.exe parsemindx parsemindx.exe
+	-rm -rf build
 	-rmdir obj
-
-.PHONY: cleanall
-cleanall: clean
-	-rm -f *.tar.gz $(PMAS) $(PMAS).exe pmdis pmdis.exe cpu/pm/*
-	-rmdir cpu/pm
-

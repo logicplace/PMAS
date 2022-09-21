@@ -74,7 +74,6 @@ char tmp[TMPSIZE];
 
 #ifndef VERSION
 	#define VERSION
-	#define VERSIONN
 #endif
 
 int errors = 0;				// increased in eprintf
@@ -158,7 +157,7 @@ int parse_directives;		// what to parse
  */
 bool SpecialSymbols(const char *name, ValueType &out)
 {
-	     if (strcmp(name, "__PMAS__") == 0) out = ValueType(VERSIONN);
+	     if (strcmp(name, "__PMAS__") == 0) out = ValueType(VERSION);
 	else if (strcmp(name, "__LINE__") == 0) out = ValueType(file->line_num);
 	else if (strcmp(name, "__FILE__") == 0) out = ValueType(file->filename);
 	else if (strcmp(name, "__RAMBASE__") == 0) out = ValueType(option_ram_base);
@@ -966,7 +965,7 @@ int main(int argc, char *argv[])
 	/*
 	 * Special symbols
 	 */
-	SetSymbolValue("__PMAS__", ValueType(VERSIONN), 0);
+	SetSymbolValue("__PMAS__", ValueType(VERSION), 0);
 	SetSymbolValue("__LINE__", ValueType((long int)0), 0);
 	SetSymbolValue("__FILE__", ValueType(""), 0);
 	SetSymbolValue("__RAMBASE__", ValueType((long int)0), 0);

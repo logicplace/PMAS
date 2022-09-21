@@ -3,7 +3,8 @@ __pycache__
 cpu/pm
 
 obj
-out
+build
+releases
 *.min
 *.sym
 pmas

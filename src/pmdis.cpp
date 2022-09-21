@@ -14,7 +14,7 @@ TODO:
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "pmas.h"
+#include "pmdis.h"
 #include "cpu.h"
 #include "instruction.h"
 
