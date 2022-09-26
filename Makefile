@@ -15,7 +15,7 @@
 ####
 #### build_common_pm.py works on Python 2.7+ so the version that ships with
 #### your linux install should be good enough.
-PMAS_VERSION := 1.0
+PMAS_VERSION := 1.1
 
 .PHONY: help
 help:
@@ -52,13 +52,14 @@ DEPFILES := $(SOURCES:src/%.cpp=obj/%.d)
 NODEPS := clean
 
 # Build flags
-INCLUDES := -Isrc -Icpu/pm
+INCLUDES := -Isrc
 CXXFLAGS := -Wall $(INCLUDES) -DVERSION="\"$(PMAS_VERSION)\""
 LDFLAGS := $(INCLUDES)
 
 ifeq ($(OS),Windows_NT)
 tPMAS := pmas.exe
 tPMDIS := pmdis.exe
+tPARSEMINDX := parsemindx.exe
 ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
 BUNDLE := releases/pmas-windows-x64.zip
 else
@@ -67,6 +68,7 @@ endif
 else
 tPMAS := pmas
 tPMDIS := pmdis
+tPARSEMINDX := parsemindx
 ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
 BUNDLE := releases/pmas-windows-x64.zip
 else
@@ -87,11 +89,6 @@ endif
 endif
 
 # Generate dependecies
-## Generate an objects list from the g++ -MM export based on which header files have cpp files 
-define getobjs =
-$(patsubst src/%.h,obj/%.o,$(filter $(SOURCES:%.cpp=%.h),$(shell [ -f obj/$(1).d ] && sed -e 's/^[^:]*://' obj/$(1).d)))
-endef
-
 ## Do g++ -MM exports and make object deps rules
 ifeq (,$(filter $(MAKECMDGOALS),$(NODEPS)))
 	-include $(DEPFILES)
@@ -121,13 +118,24 @@ bundle: releasetest $(BUNDLE)
 ##############################################################################
 ####                              Executables                             ####
 ##############################################################################
-$(tPMAS):: obj/pmas.d
-$(tPMAS):: obj/stack.o $(call getobjs,pmas)
-	$(LD) $(LDFLAGS) -o $@ $(filter %.o,$+)
+EVAL_O = obj/eval.o obj/stack.o obj/misc.o obj/symbol.o $(TMPLABEL_O) obj/valuetype.o
+INSTRUCTION_O = obj/instruction.o $(MEM_O) $(EVAL_O)
+MACROLIST_O = obj/macrolist.o obj/misc.o # $(SYMBOL_O)
+MEM_O = obj/mem.o obj/misc.o
+STACK_O = obj/stack.o obj/misc.o $(VALUETYPE_O)
+SYMBOL_O = obj/symbol.o $(MACROLIST_O) $(EVAL_O) # $(VALUETYPE_O)
+TMPLABEL_O = obj/tmplabel.o obj/misc.o
+VALUETYPE_O = obj/valuetype.o $(EVAL_O)
 
-$(tPMDIS): obj/pmdis.o
-	@echo $+
-	$(LD) $(LDFLAGS) -o $@ $(filter %.o,$+)
+$(tPMAS): obj/pmas.o $(MACROLIST_O) $(INSTRUCTION_O)
+	$(LD) $(LDFLAGS) -o $@ $(filter %.o,$^)
+
+$(tPMDIS): obj/pmdis.o $(INSTRUCTION_O)
+	$(LD) $(LDFLAGS) -o $@ $(filter %.o,$^)
+
+# Isn't needed anymore but...
+$(tPARSEMINDX): obj/parsemindx.o $(INSTRUCTION_O)
+	$(LD) $(LDFLAGS) -o $@ $(filter %.o,$^)
 
 obj/%.d: src/%.cpp
 	@mkdir obj 2>/dev/null | true
@@ -136,6 +144,9 @@ obj/%.d: src/%.cpp
 obj/%.o: src/%.cpp
 	@mkdir obj 2>/dev/null | true
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
+
+cpu/pm.s: cpu/s1c88/s1c88.s
+	$(PY) build_common_pm.py
 
 ##############################################################################
 ####                        Building release rules                        ####
@@ -146,7 +157,7 @@ releases/pmas-%.zip: build
 releases/pmas-%.tar.gz: build
 	cd $< && tar -czf ../$@ *
 
-build: $(COPYME)
+build: cpu/pm.s $(COPYME)
 	@echo 'If this fails, update the changelog'
 	grep $(PMAS_VERSION) README.md
 	-mkdir $@
@@ -160,12 +171,12 @@ TESTFILESS1C88 := test/test-reference.s $(wildcard test/s1c88/*.s)
 TESTFILESR16 := $(wildcard test/r16/*.s)
 
 # Test suites
-.PHONY: test-all $(addprefix test-,$(patsubst cpu/%,%,$(wildcard cpu/*)))
+.PHONY: test-all test-pm $(addprefix test-,$(patsubst cpu/%,%,$(wildcard cpu/*)))
 
-test-all: test-nested.min test-r16 test-pm
+test-all: test/test-nested.min test-r16 test-pm
 
 test-pm: CPU = pm
-test-pm: test-minx test-s1c88
+test-pm: cpu/pm.s test-minx test-s1c88
 
 test-minx: $(tPMAS) $(TESTFILESMINX:.s=.min)
 	$(COMPARE) test/minx/opcodes1.min test/minx/opcodes2.min
@@ -183,8 +194,8 @@ test/%.min: test/%.s $(tPMAS)
 	$(PMAS) $< $@ $(@:.min=.sym)
 
 define test_template = 
-test/$(1)/%.min: test/$(1)/%.s $(tPMAS)
-	$(PMAS) -c $(CPU:all=$(1)) $< $@ $(@:.min=.sym)
+test/$(1)/%.min: test/$(1)/%.s $$(tPMAS) cpu/$(1)/$(1).s
+	$$(PMAS) -c $$(CPU:all=$(1)) $$< $$@ $$(@:.min=.sym)
 endef
 
 $(foreach cpu,$(CPUS),$(eval $(call test_template,$(cpu))))

@@ -4,8 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "pmas.h"
 #include "instruction.h"
+#include "valuetype.h"
 
 /*
  *
@@ -24,6 +24,15 @@ const int rwnum[6] = {0, 1, 2, 3, 2, 3};
 
 int line;
 int extended = 0xAA;
+
+/**
+ * dummy stuff
+ */
+int inside_macro = 0;
+bool SpecialSymbols(const char *name, ValueType &out)
+{
+	return false;
+}
 
 /**
  * alphabetic sorting predicate
@@ -232,7 +241,7 @@ void DoCalc(char *a, char *b)
 
 		//strreplace(b, ":", "");
 
-		instruction.fmt = a;
+		strcpy(instruction.fmt, a);
 
 		//instruction.opcode = strtoul(b,0,16);
 		//instruction.fixed |= strtoul(b,0,16) << ((instruction.flags & FLAG_EXTENDED) ? 1 : 0);

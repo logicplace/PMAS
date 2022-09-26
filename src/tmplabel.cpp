@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include "pmas.h"
+#include "misc.h"
 #include "tmplabel.h"
 
 TmpLabelItem *tmplabel_left = 0;

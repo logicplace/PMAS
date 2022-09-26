@@ -1,6 +1,5 @@
 #include <string.h>
 #include <stdlib.h>
-#include "pmas.h"
 #include "valuetype.h"
 #include "eval.h"
 

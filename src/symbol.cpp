@@ -2,9 +2,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include "pmas.h"
 #include "symbol.h"
 #include "eval.h"
+
+int pass;					// pass 1..2
+char locallabelprefix[TMPSIZE];		// prefix for macro/local labels
+bool locallabelprefix_set;		// set by .localprefix
+int option_symoutput;			// Symbol output type
 
 /*
  *
@@ -44,7 +48,6 @@ void Symbol::Free()
  */
 void Symbol::WriteSymbols(FILE *f)
 {
-	extern int option_symoutput;
 	if (left) left->WriteSymbols(f);
 	if (type != SYM_SYS) {
 		if (option_symoutput == 1) {
@@ -172,20 +175,18 @@ Symbol *CreateSymbol(const char *name, int type)
  */
 ValueType GetSymbolValue(const char *name)
 {
-	extern int pass;
-
 	if (name[0] == '_')	// try local labels first
 	{
 		int locallabel = 1;
 		if (name[1] == '_')	// or special label
 		{
+			extern bool SpecialSymbols(const char *name, ValueType &out);
 			ValueType out;
 			if (SpecialSymbols(name, out)) return out;
 		}
 		if (locallabel)
 		{
 			char name2[TMPSIZE];
-			extern char locallabelprefix[];
 			strcpy(name2, locallabelprefix);
 			strcat(name2, name);
 EEKS{printf("local label? %s\n", name2);}

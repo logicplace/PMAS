@@ -1,6 +1,6 @@
 __pycache__
 *.pyc
-cpu/pm
+cpu/pm.s
 
 obj
 build

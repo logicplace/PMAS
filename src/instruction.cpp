@@ -8,8 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdlib.h>
-#include "pmas.h"
 #include "mem.h"
+#include "misc.h"
 #include "eval.h"
 #include "instruction.h"
 
@@ -17,6 +17,10 @@
  * Variables
  */
 Instruction *instructions = 0;
+int option_range;			// range checking of immediate values (default = 0)
+int option_localjump;		// jumps to local labels default to short jumps? (default = 1)
+int option_farjump;			// jumps to non-local labels and without suffix default to far jumps? (default = 1)
+int option_word;			// *NOT WORKING YET* non-jumps without B or W suffix default to word? (default = 0)
 
 /*
  * AddInstruction

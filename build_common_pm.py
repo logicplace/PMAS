@@ -169,9 +169,9 @@ def fmt_cmd(mnemonic, params):
 try: os.mkdir("cpu/pm")
 except: pass
 
-with open("cpu/s1c88/pm.s", "rt") as fin, open("cpu/pm/pm.s", "wt") as fout:
+with open("cpu/s1c88/s1c88.s", "rt") as fin, open("cpu/pm.s", "wt") as fout:
 	out = []
-	fout.write("; Automatically generated file, edit cpu/s1c88/pm.s instead\n")
+	fout.write("; Automatically generated file, edit cpu/s1c88/s1c88.s instead\n")
 	for line in fin:
 		if line.startswith(".instruction"):
 			assert line[13] == '"'

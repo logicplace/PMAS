@@ -38,6 +38,13 @@ Taken from [here](https://www.darkfader.net/info/)
 
 Old versions can be accessed [here](https://sourceforge.net/projects/pmas/files/).
 
+### v1.1 - 2022-09-26
+
+* Reorganized source code and Makefile
+* pmdis now supports CPU selection at runtime
+* minx CPU supports a lot more now (which it should've before!!)
+
+
 ### v1.0 - 2022-09-20
 
 * Add support for S1C88 ops

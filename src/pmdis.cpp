@@ -15,17 +15,26 @@ TODO:
 #include <string.h>
 #include <stdlib.h>
 #include "pmdis.h"
-#include "cpu.h"
+#include "eval.h"
 #include "instruction.h"
+#include "misc.h"
+#include "symbol.h"
+
+
+#ifndef VERSION
+	#define VERSION
+#endif
 
 /*
  * Variables
  */
+File *file;
 Instruction instructions_00[256];
 Instruction instructions_CE[256];
 Instruction instructions_CF[256];
 unsigned char *memory;
 unsigned int size;
+unsigned int NUM_INSTRUCTIONS;
 
 /*
  * tolower2
@@ -36,34 +45,142 @@ inline int tolower2(int c)
 }
 
 /*
+ * dummy stuff
+ */
+int inside_macro = 0;
+bool SpecialSymbols(const char *name, ValueType &out)
+{
+	return false;
+}
+
+/*
+ * ParseLine
+ */
+void ParseLine(const char *cline)
+{
+EEKS{printf("parseline %s\n", cline);}
+
+	char *line = strdup(strltrim(cline));
+
+	if (strword(line, ".equ") || strword(line, ".set") || strword(line, ".define"))
+	{
+		char *s = strskipspace(line);
+		char *name = strtok(s, delim_chars);
+		const char *expr = strtok(0, "");
+		if (!strcmp(line, ".define")) if (strisempty(expr)) expr = "1";	// value is optional for .define
+		if (!expr) expr = "";
+EEKS{printf("equ '%s'='%s'\n", name, expr);}
+		SetSymbolExpression(name, expr, SYM_DEF);
+EEKS{printf("verify "); GetSymbolValue(name).print();}
+	}
+	else if (strword(line, ".unset") || strword(line, ".undefine"))
+	{
+		char *s = strskipspace(line);
+		char *name = strtok(s, delim_chars);
+		UnsetSymbol(name);
+	}
+	else if (strword(line, ".instruction"))	// directive
+	{
+		const char *p = strskipspace(line);
+		Instruction *instruction = new Instruction;
+		strncpy(instruction->fmt, EvaluateExpression(p, &p).getString(), 19);
+		instruction->flags = EvaluateExpression(p, &p);
+		if (instruction->flags & FLAG_DISASMTO) {
+			instruction->fixed = EvaluateExpression(p, &p);
+			instruction->size = EvaluateExpression(p, &p);
+			instruction->argnum = EvaluateExpression(p, &p);
+			for (unsigned int i=0; i<instruction->argnum; i++)
+			{
+				instruction->argInfo[i].shift = EvaluateExpression(p, &p);
+				instruction->argInfo[i].flags = EvaluateExpression(p, &p);
+			}
+			AddInstruction(instruction);
+			++NUM_INSTRUCTIONS;
+		}
+	}
+}
+
+/*
+ * ParseFile
+ */
+void ParseFile(const char *filename)
+{
+	FILE *fi = fopen(filename, "rt");
+
+	//printf("%s\n", fullpath);
+	
+	if (fi)
+	{
+		char *line = NULL;
+		int len = 0;
+		while (1)
+		{
+			char tmpline[TMPSIZE];
+			if (!fgets(tmpline, TMPSIZE-1, fi)) break;
+
+			len += strlen(tmpline);
+			if (line != NULL)
+			{
+				line = (char *)realloc(line, len + 1);
+				strcat(line, tmpline);
+			}
+			else
+				line = strdup(tmpline);
+
+			// strip multiline escaping
+			char *p = line + len;
+			if (p > line && p[-1] == '\n') p--;
+			if (p > line && p[-1] == '\r') p--;
+			if (p > line && p[-1] == '\\')
+			{
+				*--p = '\0';
+				len = p - line;
+			}
+			else	// process the multiline
+			{
+				ParseLine(line);
+				FREE(line);
+				len = 0;
+			}
+		}
+
+		fclose(fi);
+		return;
+	}
+	fprintf(stderr, "Cannot open include file '%s'.\n", filename); eexit();
+}
+
+/*
  * InitInstructions
  */
-void InitInstructions()
+void InitInstructions(char *cpu_file)
 {
-	#define INSTRUCTIONS		(sizeof(instructions) / sizeof(instructions[0]))
+	ParseFile(cpu_file);
 
+	Instruction *instruction = instructions;
 	memset(instructions_00, 0, sizeof(instructions_00));
 	memset(instructions_CE, 0, sizeof(instructions_CE));
 	memset(instructions_CF, 0, sizeof(instructions_CF));
 
-	for (unsigned int i=0; i<INSTRUCTIONS; i++)
+	for (unsigned int i=0; i<NUM_INSTRUCTIONS; i++)
 	{
 		unsigned char extended = 0x00;
-		if (instructions[i].flags & FLAG_EXTENDED) extended = instructions[i].fixed & 0xFF;
+		if (instruction->flags & FLAG_EXTENDED) extended = instruction->fixed & 0xFF;
 		switch (extended)
 		{
-			case 0x00: instructions_00[instructions[i].fixed & 0xFF] = instructions[i]; break;
-			case 0xCE: instructions_CE[instructions[i].fixed >> 8 & 0xFF] = instructions[i]; break;
-			case 0xCF: instructions_CF[instructions[i].fixed >> 8 & 0xFF] = instructions[i]; break;
+			case 0x00: instructions_00[instruction->fixed & 0xFF] = *instruction; break;
+			case 0xCE: instructions_CE[instruction->fixed >> 8 & 0xFF] = *instruction; break;
+			case 0xCF: instructions_CF[instruction->fixed >> 8 & 0xFF] = *instruction; break;
 			default: exit(1);
 		}
+		instruction = instruction->next;
 	}
 }
 
 /*
  * ReadMiniFile
  */
-int ReadMiniFile(char *filename)
+int ReadMiniFile(const char *filename)
 {	
 	FILE *fi = fopen(filename, "rb");
 	if (!fi) { fprintf(stderr, "Cannot open input file!\n"); return -1; }
@@ -136,40 +253,74 @@ unsigned int Disassemble(char *q, unsigned char *memory, unsigned int addr)
 		}
 	}
 
-	if (!*s) return opcode_addr + instruction->size;
+	if (!*s && instruction->size) return opcode_addr + instruction->size;
 
 	qp = q;
 	qp += sprintf(qp, ".db $%02X", memory[opcode_addr]);
 	return opcode_addr + 1;
 }
 
-#ifdef VERSION
-
 /*
  * main
  */
 int main(int argc, char *argv[])
 {
-	InitInstructions();
-
 	fprintf(stderr,
-		"Pika Macro DISassembler " VERSION " (build " __DATE__ ") originallyby Rafael Vuijk. http://darkfader.net/pm/\n"
+		"Pika Macro DISassembler " VERSION " (build " __DATE__ ") originally by Rafael Vuijk. http://darkfader.net/pm/\n"
 	);
 	
 	if (argc < 3)
 	{
 		fprintf(stderr,
-			"Syntax: pmdis input.min output.s\n"	//[symbols.sym]
+			"Syntax: pmdis [-c cpu] input.min output.s\n"	//[symbols.sym]
 			"Use '-' for output filename to use stdout.\n"
 		);
 		exit(0);
 	}
-	
-	if (ReadMiniFile(argv[1]) < 0) exit(1);
 
-	FILE *fo = strcmp(argv[2], "-") ? fopen(argv[2], "wt") : stdout;
+	// parse parameters
+	const char *cpu_name = "pm";
+	const char *inputfile = NULL;
+	char *outputfile = NULL;
+	for (int a=1; a<argc; a++)
+	{
+		if ((argv[a][0] == '-') && (argv[a][1] != 0))
+		{
+			switch (argv[a][1])
+			{
+				case 'c':
+					cpu_name = argv[++a];
+					if (strchr(cpu_name, '/') || strchr(cpu_name, '\\')) {
+						eprintf("CPU name cannot contain slashes.\n");
+						eexit();
+					}
+					break;
+
+				default:
+					break;
+			}
+		}
+		else
+		{
+			if (!inputfile) inputfile = argv[a];
+			else if (!outputfile) outputfile = argv[a];
+		}
+	}
+
+	char *cpu_file = get_cpu_file_from_name(argv[0], cpu_name);
+	InitInstructions(cpu_file);
+	FREE(cpu_file);
+
+	if (ReadMiniFile(inputfile) < 0) exit(1);
+
+	FILE *fo = strcmp(outputfile, "-") ? fopen(outputfile, "wt") : stdout;
 	if (!fo) { fprintf(stderr, "Cannot open output file!\n"); exit(1); }
-	fprintf(fo, "; disassembly of %s\n\n", argv[1]);
+	fprintf(fo, "; disassembly of %s\n", inputfile);
+	if (strcmp(cpu_name, "pm")) {
+		fprintf(fo, ".include	%s.s\n", cpu_name);
+	}
+	fputc('\n', fo);
+
 	unsigned int addr = 0;
 	while (addr < size)
 	{
@@ -182,5 +333,3 @@ int main(int argc, char *argv[])
 
 	return 0;
 }
-
-#endif

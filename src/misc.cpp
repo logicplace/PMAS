@@ -4,12 +4,14 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include "misc.h"
 
 /*
  * Variables
  */
+int errors = 0;				// increased in eprintf
 const char endline_chars[] = "#;\r\n";			// match with 'isendline'. Note: the expression evaluator checks for it too and handles strings correctly.
 const char delim_chars[] = ", \t\r\n";			// use with strtok
 
@@ -121,3 +123,74 @@ char *ParseString(const char *&p)
 	return s;
 }
 
+/*
+ * get_cpu_file_from_name
+ */
+char *get_cpu_file_from_name(const char *arg0, const char *name) {
+	char *cpu_file = (char *)calloc(TMPSIZE, 1);
+	if (arg0 && arg0[0]) {
+		// Name of exe's directory
+		strcpy(cpu_file, arg0);
+		char *p = strrchr(cpu_file, '/');
+		if (!p) p = strrchr(cpu_file, '\\');
+		if (p) *++p = 0;
+		else *cpu_file = 0;
+	}
+	strcat(cpu_file, "cpu/");
+	if (!name || !strcmp(name, "pm")) {
+		strcat(cpu_file, "pm.s");
+	}
+	else {
+		strcat(cpu_file, name);
+		strcat(cpu_file, "/");
+		strcat(cpu_file, name);
+		strcat(cpu_file, ".s");
+	}
+	return cpu_file;
+}
+
+/*
+ * eprintf
+ * Print error
+ */
+void veprintf(File *file, const char *fmt, va_list marker)
+{
+	char errormsg[TMPSIZE];
+	/*int r =*/ vsprintf(errormsg, fmt, marker);
+	char *p;
+	if (file != NULL) {
+		if ((p = strchr(file->origline, '\r'))) *p = 0;
+		if ((p = strchr(file->origline, '\n'))) *p = 0;
+		while ((p = strchr(file->origline, '\t'))) *p = ' ';
+		fprintf(stderr, "%s, line %d: \'%s\' : %s",
+			file->filename, file->line_num, file->origline, errormsg
+		);
+	}
+	if (++errors >= MAX_ERRORS)
+	{
+		fprintf(stderr, "Maximum number of errors reached.\n"); eexit();
+	}
+}
+
+void eprintf(File *file, const char *fmt, ...)
+{
+	va_list marker;
+	va_start(marker, fmt);
+	veprintf(file, fmt, marker);
+	va_end(marker);
+}
+
+void eprintf(const char *fmt, ...) {
+	va_list marker;
+	va_start(marker, fmt);
+	veprintf(NULL, fmt, marker);
+	va_end(marker);
+}
+
+/*
+ * eexit
+ */
+void eexit()
+{
+	exit(1);
+}

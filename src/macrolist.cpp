@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include "pmas.h"
 #include "misc.h"
 #include "macrolist.h"
 #include "symbol.h"
@@ -120,6 +119,8 @@ EEKS{printf("string param: '%s'\n", paramvalue2);}
 		StringList *s = m->lines;
 		while (s)
 		{
+			extern File *file;
+			extern void ParseLine(const char *file_line);
 			char tmp[TMPSIZE];
 			strcpy(tmp, s->string);
 			strcpy(file->origline, s->string);

@@ -7,8 +7,8 @@ Memory is divided into parts
 #include <stdio.h>
 #include <fcntl.h>			// for _O_BINARY
 #include <string.h>
-#include "pmas.h"
 #include "mem.h"
+#include "misc.h"
 
 #define MEMSIZE			2*1024*1024		// max output size
 #define	PARTSIZE		256
@@ -16,6 +16,9 @@ Memory is divided into parts
 int reloc_offset;
 unsigned int addr;
 unsigned int maxaddr = 0;
+
+unsigned int option_base;	// start address of output file (default = 0)
+int option_fill;			// byte to fill uninitialized data with (default = 0xFF)
 
 struct MemPart
 {

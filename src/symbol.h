@@ -39,6 +39,13 @@ struct Symbol
 };
 
 /*
+ * Variables
+ */
+extern char locallabelprefix[];		// prefix for macro/local labels
+extern bool locallabelprefix_set;	// set by .localprefix
+extern int option_symoutput;		// Symbol output type
+
+/*
  * Prototypes
  */
 bool IsSymbolDefined(const char *name);

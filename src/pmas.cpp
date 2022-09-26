@@ -17,6 +17,9 @@ TODO:
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #ifdef WIN32
 #include <io.h>			// for unlink
 #else
@@ -27,6 +30,7 @@ TODO:
 #include "macrolist.h"
 #include "instruction.h"
 #include "mem.h"
+#include "misc.h"
 #include "symbol.h"
 #include "tmplabel.h"
 
@@ -62,76 +66,25 @@ int includepaths_count = 0;
    
 char tmp[TMPSIZE];
 
-/****************************************************************************\
- Error
-\****************************************************************************/
-
-#ifdef DEBUG
-	#define MAX_ERRORS			1
-#else
-	#define MAX_ERRORS			20
-#endif
-
 #ifndef VERSION
 	#define VERSION
 #endif
 
-int errors = 0;				// increased in eprintf
-
 //extern File files[];			// TODO: put into stack
 //extern int currentfile;
 
-/*
- * eexit
- */
-void eexit()
-{
-	exit(1);
-}
-
-/*
- * eprintf
- * Print error
- */
-void eprintf(const char *fmt, ...)
-{
-	char errormsg[TMPSIZE];
-	va_list marker;
-	va_start(marker, fmt);
-	/*int r =*/ vsprintf(errormsg, fmt, marker);
-	va_end(marker);
-	char *p;
-	if ((p = strchr(file->origline, '\r'))) *p = 0;
-	if ((p = strchr(file->origline, '\n'))) *p = 0;
-	while ((p = strchr(file->origline, '\t'))) *p = ' ';
-	fprintf(stderr, "%s, line %d: \'%s\' : %s",
-		file->filename, file->line_num, file->origline, errormsg
-	);
-	if (++errors >= MAX_ERRORS)
-	{
-		fprintf(stderr, "Maximum number of errors reached.\n"); eexit();
-	}
-}
 
 /****************************************************************************\
  Misc
 \****************************************************************************/
 
-int pass;					// pass 1..2
-int option_range;			// range checking of immediate values (default = 0)
-unsigned int option_base;	// start address of output file (default = 0)
-int option_localjump;		// jumps to local labels default to short jumps? (default = 1)
-int option_farjump;			// jumps to non-local labels and without suffix default to far jumps? (default = 1)
-int option_word;			// *NOT WORKING YET* non-jumps without B or W suffix default to word? (default = 0)
-int option_fill;			// byte to fill uninitialized data with (default = 0xFF)
 int option_ram_base;			// RAM base address
-int option_symoutput;			// Symbol output type
+const char* option_output_ext;	// Default output extension
+const char *default_cpu = "pm";
 
 int condition_stack;			// condition stack level
 bool condition[MAX_CONDSTACK];		// conditional assembling
 bool condition_met[MAX_CONDSTACK];	// conditional already met?
-char locallabelprefix[TMPSIZE];		// prefix for macro/local labels
-bool locallabelprefix_set;		// set by .localprefix
 int repeat;					// macro repeat count
 
 /****************************************************************************\
@@ -212,7 +165,7 @@ void ParseDirective(const char *cline)
 		current_macro = FindMacro(name);
 		if (pass != PASS_ASM)
 		{
-			if (current_macro) { eprintf("Macro name already defined.\n"); eexit(); }
+			if (current_macro) { eprintf(file, "Macro name already defined.\n"); eexit(); }
 			current_macro = NewMacro(name, DIRECTIVE("macroicase", PARSE_MACRO_DIRECTIVES));
 EEKS{printf("new macro at %p\n", current_macro);}
 			char *paramname;
@@ -240,7 +193,7 @@ EEKS{printf("new macro at %p\n", current_macro);}
 	else if (DIRECTIVE("if", PARSE_COND_DIRECTIVES))
 	{
 		condition_stack++;
-		if (condition_stack >= MAX_CONDSTACK) { eprintf("Conditions stack exceeded.\n"); eexit(); }
+		if (condition_stack >= MAX_CONDSTACK) { eprintf(file, "Conditions stack exceeded.\n"); eexit(); }
 		condition[condition_stack] = EvaluateExpression(strskipspace(line));
 		condition_met[condition_stack] = condition[condition_stack];
 		if (!condition[condition_stack-1]) condition[condition_stack] = false;	// parent must be true
@@ -248,7 +201,7 @@ EEKS{printf("new macro at %p\n", current_macro);}
 	}
 	else if (DIRECTIVE("elif", PARSE_COND_DIRECTIVES) || DIRECTIVE("elsif", PARSE_COND_DIRECTIVES) /*|| DIRECTIVE("elseif", PARSE_COND_DIRECTIVES)*/)
 	{
-		if (condition_stack <= 0) { eprintf(".elif without .if\n"); eexit(); }	// NOTE: .elif was added later
+		if (condition_stack <= 0) { eprintf(file, ".elif without .if\n"); eexit(); }	// NOTE: .elif was added later
 		if (condition_met[condition_stack])
 		{
 			condition[condition_stack] = false;
@@ -263,21 +216,21 @@ EEKS{printf("new macro at %p\n", current_macro);}
 	}
 	else if (DIRECTIVE("else", PARSE_COND_DIRECTIVES))
 	{
-		if (condition_stack <= 0) { eprintf(".else without .if\n"); eexit(); }
+		if (condition_stack <= 0) { eprintf(file, ".else without .if\n"); eexit(); }
 		condition[condition_stack] = !condition_met[condition_stack];
 		if (!condition[condition_stack-1]) condition[condition_stack] = false;	// parent must be true
 		parse_directives = condition[condition_stack] ? PARSE_ALL_DIRECTIVES : PARSE_COND_DIRECTIVES;
 	}
 	else if (DIRECTIVE("endif", PARSE_COND_DIRECTIVES))
 	{
-		if (condition_stack <= 0) { eprintf(".endif without .if\n"); eexit(); }
+		if (condition_stack <= 0) { eprintf(file, ".endif without .if\n"); eexit(); }
 		condition_stack--;
 		parse_directives = condition[condition_stack] ? PARSE_ALL_DIRECTIVES : PARSE_COND_DIRECTIVES;
 	}
 	else if (DIRECTIVE("ifdef", PARSE_COND_DIRECTIVES) || DIRECTIVE("ifndef", PARSE_COND_DIRECTIVES))
 	{
 		condition_stack++;
-		if (condition_stack >= MAX_CONDSTACK) { eprintf("Conditions stack exceeded.\n"); eexit(); }
+		if (condition_stack >= MAX_CONDSTACK) { eprintf(file, "Conditions stack exceeded.\n"); eexit(); }
 		char *defname = strtok((char *)strskipspace(line), delim_chars);
 		condition[condition_stack] = IsSymbolDefined(defname) ^ (DIRECTIVE("ifndef", PARSE_COND_DIRECTIVES));
 		condition_met[condition_stack] = condition[condition_stack];
@@ -287,7 +240,7 @@ EEKS{printf("new macro at %p\n", current_macro);}
 	else if (DIRECTIVE("ifstring", PARSE_COND_DIRECTIVES) || DIRECTIVE("ifnstring", PARSE_COND_DIRECTIVES))
 	{
 		condition_stack++;
-		if (condition_stack >= MAX_CONDSTACK) { eprintf("Conditions stack exceeded.\n"); eexit(); }
+		if (condition_stack >= MAX_CONDSTACK) { eprintf(file, "Conditions stack exceeded.\n"); eexit(); }
 		char *defname = strtok((char *)strskipspace(line), delim_chars);
 		if (DIRECTIVE("ifnstring", PARSE_COND_DIRECTIVES))
 			condition[condition_stack] = EvaluateExpression(defname).getString() == NULL;
@@ -372,7 +325,7 @@ EEKS{printf("'%s'\n", p);}
 		if (expr) size = EvaluateExpression(expr);
 		if (size <= 0)
 		{
-			eprintf("Invalid ram size.\n");
+			eprintf(file, "Invalid ram size.\n");
 		}
 		SetSymbolValue(name, ValueType(option_ram_base), DIRECTIVE("ramicase", PARSE_OTHER_DIRECTIVES) ? SYM_RAM_ICASE : SYM_RAM);
 		option_ram_base += size;
@@ -403,7 +356,7 @@ EEKS{printf("verify "); GetSymbolValue(name).print();}
 	{
 		char *s = strskipspace(line);
 		char *name = strtok(s, delim_chars);
-		int value = EvaluateExpression(strtok(0, ""));
+		ValueType value = EvaluateExpression(strtok(0, ""));
 		if (!strcmp(name, "directive")) option_directive = value;
 		else if (!strcmp(name, "range")) option_range = value;
 		else if (!strcmp(name, "base")) option_base = value;
@@ -412,9 +365,10 @@ EEKS{printf("verify "); GetSymbolValue(name).print();}
 		else if (!strcmp(name, "word")) option_word = value;
 		else if (!strcmp(name, "fill")) option_fill = value;
 		else if (!strcmp(name, "ram_base")) option_ram_base = value;
-		else if (!strcmp(name, "multipass")) eprintf("Multipass only supported on PMAS+.\n");
+		else if (!strcmp(name, "multipass")) eprintf(file, "Multipass only supported on PMAS+.\n");
 		else if (!strcmp(name, "symoutput")) option_symoutput = value;
-		else eprintf("Unknown option '%s'.\n", name);
+		else if (!strcmp(name, "output_ext")) option_output_ext = value.getString();
+		else eprintf(file, "Unknown option '%s'.\n", name);
 	}
 	else if (DIRECTIVE("unset", PARSE_OTHER_DIRECTIVES) || DIRECTIVE("undefine", PARSE_OTHER_DIRECTIVES))
 	{
@@ -461,7 +415,7 @@ EEKS{printf("verify "); GetSymbolValue(name).print();}
 	{
 		int value = EvaluateExpression(strskipspace(line));
 		int check = value; while (~check & 1) check >>= 1;
-		if (check != 1) { eprintf("Value must be power of 2.\n"); eexit(); }
+		if (check != 1) { eprintf(file, "Value must be power of 2.\n"); eexit(); }
 		addr = (addr + (value-1)) / value * value;
 	}
 	else if (DIRECTIVE("ds", PARSE_OTHER_DIRECTIVES))
@@ -483,7 +437,7 @@ EEKS{printf("verify "); GetSymbolValue(name).print();}
 	{
 		ValueType n = EvaluateExpression(strskipspace(line));
 		const char *s = n.getString();
-		if (!s) { eprintf("String expression expected.\n"); goto exit; }
+		if (!s) { eprintf(file, "String expression expected.\n"); goto exit; }
 EEKS{printf("'%s' '%s'\n", strskipspace(line), s);}
 		char tmp[TMPSIZE];
 		strcpy(tmp, s);
@@ -519,7 +473,7 @@ EEKS{printf("'%s' '%s'\n", strskipspace(line), s);}
 			if (fb) break;
 		}
 
-		if (!fb) { eprintf("Cannot open binary file '%s'.\n", name); eexit(); }
+		if (!fb) { eprintf(file, "Cannot open binary file '%s'.\n", name); eexit(); }
 		if (pass == PASS_ASM)
 		{
 			while (1)
@@ -589,7 +543,7 @@ EEKS{printf("'%s' '%s'\n", strskipspace(line), s);}
 		{
 			ValueType n = EvaluateExpression(strskipspace(line));
 			const char *s = n.getString();
-			if (!s) { eprintf("String expression expected.\n"); goto exit; }
+			if (!s) { eprintf(file, "String expression expected.\n"); goto exit; }
 			fprintf(stderr, "%s, line %d: Error : %s\n",
 				file->filename, file->line_num, s
 			);
@@ -605,7 +559,7 @@ EEKS{printf("'%s' '%s'\n", strskipspace(line), s);}
 		{
 			ValueType n = EvaluateExpression(strskipspace(line));
 			const char *s = n.getString();
-			if (!s) { eprintf("String expression expected.\n"); goto exit; }
+			if (!s) { eprintf(file, "String expression expected.\n"); goto exit; }
 			printf("%s, line %d: Warning : %s\n",
 				file->filename, file->line_num, s
 			);
@@ -615,7 +569,7 @@ EEKS{printf("'%s' '%s'\n", strskipspace(line), s);}
 	{
 		if (pass == PASS_ASM)
 		{
-			eprintf("Exiting.\n");
+			eprintf(file, "Exiting.\n");
 			eexit();
 		}
 	}
@@ -629,7 +583,7 @@ EEKS{printf("'%s' '%s'\n", strskipspace(line), s);}
 	 */
 	if (!valid_directive && option_directive)		// test for unknown directive
 	{
-		eprintf("Unknown directive.\n");
+		eprintf(file, "Unknown directive.\n");
 	}
 exit:
 	free(line);
@@ -655,7 +609,7 @@ void ParseLabel(const char *cline)
 	{
 		char *line = strdup(strltrim(cline));
 		char *p = strchr(line, ':');
-		if (!p) { eprintf("Label does not end with a colon (':').\n"); return; }
+		if (!p) { eprintf(file, "Label does not end with a colon (':').\n"); return; }
 		*p = 0;
 		if (strlen(line) == 0)	// temporary label
 		{
@@ -671,7 +625,7 @@ void ParseLabel(const char *cline)
 				char tmp[TMPSIZE];
 				strcpy(tmp, locallabelprefix);
 				strcat(tmp, line);
-				if (IsSymbolDefined(tmp)) { eprintf("Symbol already defined.\n"); return; }
+				if (IsSymbolDefined(tmp)) { eprintf(file, "Symbol already defined.\n"); return; }
 				SetSymbolValue(tmp, ValueType(addr), SYM_LOC);
 			}
 		}
@@ -680,7 +634,7 @@ void ParseLabel(const char *cline)
 			strcpy(locallabelprefix, line);
 			if (pass != PASS_ASM)
 			{
-				if (IsSymbolDefined(line)) { eprintf("Symbol already defined.\n"); return; }
+				if (IsSymbolDefined(line)) { eprintf(file, "Symbol already defined.\n"); return; }
 EEKS{printf("label %06X\n", addr);}
 				SetSymbolValue(line, ValueType(addr), SYM_LAB);
 			}
@@ -716,11 +670,13 @@ void ParseInstruction(const char *cline)
 
 		if (!instructions)		// try default cpu
 		{
-			ParseFile("cpu/pm/pm.s");
+			char *fn = get_cpu_file_from_name("", default_cpu);
+			ParseFile(fn);
+			free(fn);
 			if (TryInstructions(cline)) return;
 		}
 
-		eprintf("Unknown instruction or invalid arguments.\n");
+		eprintf(file, "Unknown instruction or invalid arguments.\n");
 	}
 }
 
@@ -805,7 +761,7 @@ void ParseFile(const char *filename)
 			File *calling_file = file;
 			file = &_file;
 
-			//if (currentfile == MAX_INCLUDELEVEL - 1) { eprintf("Maximum include level reached.\n"); eexit(); }
+			//if (currentfile == MAX_INCLUDELEVEL - 1) { eprintf(file, "Maximum include level reached.\n"); eexit(); }
 			//currentfile++;
 			file->fi = fi;
 			file->filename = strdup(filename);
@@ -889,8 +845,8 @@ int main(int argc, char *argv[])
 	// show help
 	if (argc < 3)
 	{
-		printf("Syntax: pmas input.s output.min symbols.sym\n");
-		printf("Syntax: pmas input.s [-o output.min] [-s symbols.sym]\n");
+		printf("Syntax: pmas input.s [output.min [symbols.sym]]\n");
+		printf("Syntax: pmas input.s [-o output.min] [-s symbols.sym | -S]\n");
 		printf("\n");
 		printf("Use '-' for filenames to use stdin/stdout.\n");
 		eexit();
@@ -898,8 +854,8 @@ int main(int argc, char *argv[])
 
 	// parse parameters
 	const char *inputfile = NULL;
-	const char *outputfile = NULL;
-	const char *symbolfile = NULL;
+	char *outputfile = NULL;
+	char *symbolfile = NULL;
 	bool newstyleparams = false;
 	bool oldstyleparams = false;
 	for (int a=1; a<argc; a++)
@@ -908,6 +864,14 @@ int main(int argc, char *argv[])
 		{
 			switch (argv[a][1])
 			{
+				case 'c':
+					default_cpu = argv[++a];
+					if (strchr(default_cpu, '/') || strchr(default_cpu, '\\')) {
+						eprintf("CPU name cannot contain slashes.\n");
+						eexit();
+					}
+					break;
+
 				case 'o':
 					newstyleparams = true;
 					if (outputfile) { eprintf("Output file already specified.\n"); eexit(); }
@@ -918,6 +882,10 @@ int main(int argc, char *argv[])
 					newstyleparams = true;
 					if (symbolfile) { eprintf("Symbol file already specified.\n"); eexit(); }
 					symbolfile = argv[++a];
+					break;
+
+				case 'S':
+					symbolfile = (char*)1;
 					break;
 				
 				default:
@@ -961,6 +929,31 @@ int main(int argc, char *argv[])
 	if (!p) p = strrchr(tmp, '\\');
 	if (p) *++p = 0;
 	includepaths[includepaths_count++] = strdup(tmp);
+
+	// add cpu directories to the include path
+	struct dirent *dp;
+	DIR *dfd;
+
+	strcat(tmp, "cpu/");
+	includepaths[includepaths_count++] = strdup(tmp);
+
+	if ((dfd = opendir(tmp)) != NULL)
+	{
+		char subdir[TMPSIZE];
+		while ((dp = readdir(dfd)) != NULL)
+		{
+			struct stat stbuf;
+			sprintf(subdir, "%s%s/", tmp, dp->d_name);
+			if (
+				stat(subdir, &stbuf) != -1
+				&& (stbuf.st_mode & S_IFMT) == S_IFDIR
+				&& dp->d_name[0] != '.'
+			)
+			{
+				includepaths[includepaths_count++] = strdup(subdir);
+			}
+		}
+	}
 
 	/*
 	 * Special symbols
@@ -1016,16 +1009,31 @@ int main(int argc, char *argv[])
 	 * write output
 	 */
 
-	if (outputfile)
+	if (!outputfile)
 	{
-		WriteOutput(outputfile);
+		const char *end = strrchr(inputfile, '.');
+		int len = end - inputfile;
+		outputfile = (char*)malloc(len + strlen(option_output_ext) + 1);
+		strncpy(outputfile, inputfile, len);
+		strcpy(outputfile + len, option_output_ext);
 	}
+	WriteOutput(outputfile);
 	
 	/*
 	 * write symbols
 	 */
 
-	if (argc >= 4) WriteSymbols(argv[3]);
+	if (symbolfile) {
+		if (symbolfile == (char*)1) {
+			// Take name from output file
+			char *end = strrchr(outputfile, '.');
+			int len = end - outputfile + 1;
+			symbolfile = (char*)malloc(len + 3 + 1);
+			strncpy(symbolfile, outputfile, len);
+			strcpy(symbolfile + len, "sym");
+		}
+		WriteSymbols(symbolfile);
+	}
 
 	return 0;
 }

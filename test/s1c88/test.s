@@ -1,4 +1,4 @@
-	;.include	cpu/s1c88/pm.s
+	;.include	s1c88.s
 
 	.if		0
 	nop

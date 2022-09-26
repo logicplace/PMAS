@@ -10,6 +10,7 @@
 .set FLAG_CONT			0x01		; can continue to next location
 .set FLAG_REL			0x02		; PC relative (SHOULD THIS BE HERE?)
 .set FLAG_EXTENDED		0x04		; only used in parsemindx
+.set FLAG_DISASMTO		0x10		; use this version for disasm if there are multiple macros which asm to this
 
 .set MAX_ARGS			4
 

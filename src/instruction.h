@@ -8,6 +8,7 @@
 #define FLAG_CONT			0x01		// can continue to next location
 #define FLAG_REL			0x02		// PC relative (SHOULD THIS BE HERE?)
 #define FLAG_EXTENDED		0x04		// only used in parsemindx
+#define FLAG_DISASMTO		0x10		// use this version for disasm if there are multiple macros which asm to this
 
 /*
  * Defines
@@ -59,9 +60,12 @@ struct Instruction
 /*
  * Variables
  */
-#ifndef CPU
 extern Instruction *instructions;
-#endif
+
+extern int option_range;			// range checking of immediate values (default = 0)
+extern int option_localjump;		// jumps to local labels default to short jumps? (default = 1)
+extern int option_farjump;			// jumps to non-local labels and without suffix default to far jumps? (default = 1)
+extern int option_word;				// *NOT WORKING YET* non-jumps without B or W suffix default to word? (default = 0)
 
 /*
  * Prototypes

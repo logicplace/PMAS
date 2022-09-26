@@ -30,7 +30,6 @@
 #include "eval.h"
 #include "stack.h"
 #include "misc.h"
-#include "pmas.h"
 #include "symbol.h"
 #include "tmplabel.h"
 
