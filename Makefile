@@ -61,19 +61,14 @@ tPMAS := pmas.exe
 tPMDIS := pmdis.exe
 tPARSEMINDX := parsemindx.exe
 ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
-BUNDLE := releases/pmas-windows-x64.zip
+BUNDLE := releases/pmas-$(PMAS_VERSION)-windows-x64.zip
 else
-BUNDLE := releases/pmas-windows-x86.zip
+BUNDLE := releases/pmas-$(PMAS_VERSION)-windows-x86.zip
 endif
 else
 tPMAS := pmas
 tPMDIS := pmdis
 tPARSEMINDX := parsemindx
-ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
-BUNDLE := releases/pmas-windows-x64.zip
-else
-BUNDLE := releases/pmas-windows-x86.zip
-endif
 UNAME_S := $(shell uname -s)
 UNAME_P := $(shell uname -p)
 ifeq ($(UNAME_S),Darwin)
@@ -82,9 +77,9 @@ else
 OS := linux
 endif
 ifeq ($(UNAME_P),x86_64)
-BUNDLE := releases/pmas-$(OS)-x64.tar.gz
+BUNDLE := releases/pmas-$(PMAS_VERSION)-$(OS)-x64.tar.gz
 else
-BUNDLE := releases/pmas-$(OS)-x86.tar.gz
+BUNDLE := releases/pmas-$(PMAS_VERSION)-$(OS)-x86.tar.gz
 endif
 endif
 
