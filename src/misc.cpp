@@ -15,6 +15,8 @@ int errors = 0;				// increased in eprintf
 const char endline_chars[] = "#;\r\n";			// match with 'isendline'. Note: the expression evaluator checks for it too and handles strings correctly.
 const char delim_chars[] = ", \t\r\n";			// use with strtok
 
+extern File *file; // use this as a global as eprint is often called without the file
+
 /*
  * strisempty
  * return true if empty or null
@@ -162,10 +164,11 @@ void veprintf(File *file, const char *fmt, va_list marker)
 		if ((p = strchr(file->origline, '\r'))) *p = 0;
 		if ((p = strchr(file->origline, '\n'))) *p = 0;
 		while ((p = strchr(file->origline, '\t'))) *p = ' ';
-		fprintf(stderr, "%s, line %d: \'%s\' : %s",
-			file->filename, file->line_num, file->origline, errormsg
+		fprintf(stderr, "\n%s%s:%d \'%s\'\n\n",
+			errormsg, file->filename, file->line_num, file->origline
 		);
 	}
+
 	if (++errors >= MAX_ERRORS)
 	{
 		fprintf(stderr, "Maximum number of errors reached.\n"); eexit();
@@ -183,7 +186,7 @@ void eprintf(File *file, const char *fmt, ...)
 void eprintf(const char *fmt, ...) {
 	va_list marker;
 	va_start(marker, fmt);
-	veprintf(NULL, fmt, marker);
+	veprintf(file, fmt, marker);
 	va_end(marker);
 }
 
